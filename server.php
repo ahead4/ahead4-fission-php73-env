@@ -22,6 +22,8 @@ $logger->pushHandler(new StreamHandler('php://stdout', Logger::DEBUG));
 $loop = React\EventLoop\Factory::create();
 
 $server = new Server(function (ServerRequestInterface $request) use (&$codePath, &$userFunction, $logger) {
+    var_dump($method . ' ' . $path);
+
     $path = $request->getUri()->getPath();
     $method = $request->getMethod();
 

@@ -31,39 +31,53 @@ $server = new Server(function (ServerRequestInterface $request) use (&$codePath,
 		$codePath = V1_CODEPATH;
 		$userFunction = V1_USER_FUNCTION;
 
+		$logger->debug('V1 Specialize, codePath: [' . $codePath . '], userFunction: [' . $userFunction . ']');
+
 		return new Response(201);
 	}
 
 	if ('/v2/specialize' === $path && 'POST' === $method) {
+		$logger->debug('V2 Specialize');
+
 		$body = json_decode($request->getBody()->getContents(), true);
+
+		foreach ($body as $key => $value) {
+			$logger->debug('key: [' . $key . '], value: [' . $value . ']');
+		}
+
 		$filepath = $body['filepath'];
+
 		list ($moduleName, $userFunction) = explode(HANDLER_DIVIDER, $body['functionName']);
+		
 		if (true === is_dir($filepath)) {
 			$codePath = $filepath . DIRECTORY_SEPARATOR . $moduleName;
-
 		} else {
 			$codePath = $filepath;
 		}
+
+		$logger->debug('codePath: [' . $codePath . ']');
 
 		return new Response(201);
 	}
 
 	if ('/' === $path) {
 		if (null === $codePath) {
-			$logger->error("$codePath not found");
+			$logger->error('codePath not defined');
 			return new Response(500, [], 'Generic container: no requests supported');
 		}
 
 		ob_start();
 
 		if (!file_exists($codePath)) {
-			$logger->error("$codePath not found");
+			$logger->error('codePath not found');
 			return new Response(500, [], "$codePath not found");
 		}
 
 		$parser = (new ParserFactory)->create(ParserFactory::PREFER_PHP7);
 		try {
-			$parser->parse(file_get_contents($codePath));
+			$codeContents = file_get_contents($codePath);
+			var_dump('codeContents', $codeContents);
+			$parser->parse($codeContents);
 		} catch (Throwable $throwable) {
 			$logger->error($codePath . ' - ' . $throwable->getMessage());
 			return new Response(500, [], $codePath . ' - ' . $throwable->getMessage());
@@ -72,7 +86,7 @@ $server = new Server(function (ServerRequestInterface $request) use (&$codePath,
 		require_once $codePath;
 
 		if (function_exists($userFunction)) {
-			$logger->debug('Calling user function');
+			$logger->debug('Calling user function [' . $userFunction . ']');
 
 			$response = new Response();
 			ob_end_clean();
@@ -85,7 +99,7 @@ $server = new Server(function (ServerRequestInterface $request) use (&$codePath,
 			
 			return $response;
 		} else {
-			$logger->debug('User function doesnt exist');
+			$logger->debug('User function [' . $userFunction . '] doesnt exist');
 		}
 
 		$bodyRowContent = ob_get_contents();

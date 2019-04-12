@@ -80,7 +80,6 @@ $server = new Server(function (ServerRequestInterface $request) use (&$codePath,
 		$parser = (new ParserFactory)->create(ParserFactory::PREFER_PHP7);
 		try {
 			$codeContents = file_get_contents($codePath);
-			var_dump('codeContents', $codeContents);
 			$parser->parse($codeContents);
 		} catch (Throwable $throwable) {
 			$logger->error($codePath . ' - ' . $throwable->getMessage());

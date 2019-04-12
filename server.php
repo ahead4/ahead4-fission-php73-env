@@ -11,13 +11,13 @@ use RingCentral\Psr7\Response;
 
 const V1_CODEPATH = '/userfunc/user';
 const V1_USER_FUNCTION = 'handler';
+const V2_USER_FUNCTION = 'handler';
 const HANDLER_DIVIDER = '::';
 
 $codePath = null;
 $userFunction = null;
-$logger = new Logger("Function");
+$logger = new Logger('Function');
 $logger->pushHandler(new StreamHandler('php://stdout', Logger::DEBUG));
-
 
 $loop = React\EventLoop\Factory::create();
 
@@ -48,7 +48,11 @@ $server = new Server(function (ServerRequestInterface $request) use (&$codePath,
 		$filepath = $body['filepath'];
 
 		list ($moduleName, $userFunction) = explode(HANDLER_DIVIDER, $body['functionName']);
-		
+
+		if (!$userFunction) {
+			$userFunction = V2_USER_FUNCTION;
+		}
+
 		if (true === is_dir($filepath)) {
 			$codePath = $filepath . DIRECTORY_SEPARATOR . $moduleName;
 		} else {
@@ -96,7 +100,7 @@ $server = new Server(function (ServerRequestInterface $request) use (&$codePath,
 				'response' => $response,
 				'logger'   => $logger,
 			]);
-			
+
 			return $response;
 		} else {
 			$logger->debug('User function [' . $userFunction . '] doesnt exist');

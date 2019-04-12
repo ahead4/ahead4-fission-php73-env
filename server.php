@@ -22,69 +22,79 @@ $logger->pushHandler(new StreamHandler('php://stdout', Logger::DEBUG));
 $loop = React\EventLoop\Factory::create();
 
 $server = new Server(function (ServerRequestInterface $request) use (&$codePath, &$userFunction, $logger) {
-    $path = $request->getUri()->getPath();
-    $method = $request->getMethod();
+	$path = $request->getUri()->getPath();
+	$method = $request->getMethod();
 
-    var_dump($method . ' ' . $path);
+	$logger->debug($method . ' ' . $path);
 
-    if ('/specialize' === $path && 'POST' === $method) {
-        $codePath = V1_CODEPATH;
-        $userFunction = V1_USER_FUNCTION;
+	if ('/specialize' === $path && 'POST' === $method) {
+		$codePath = V1_CODEPATH;
+		$userFunction = V1_USER_FUNCTION;
 
-        return new Response(201);
-    }
+		return new Response(201);
+	}
 
-    if ('/v2/specialize' === $path && 'POST' === $method) {
-        $body = json_decode($request->getBody()->getContents(), true);
-        $filepath = $body['filepath'];
-        list ($moduleName, $userFunction) = explode(HANDLER_DIVIDER, $body['functionName']);
-        if (true === is_dir($filepath)) {
-            $codePath = $filepath . DIRECTORY_SEPARATOR . $moduleName;
+	if ('/v2/specialize' === $path && 'POST' === $method) {
+		$body = json_decode($request->getBody()->getContents(), true);
+		$filepath = $body['filepath'];
+		list ($moduleName, $userFunction) = explode(HANDLER_DIVIDER, $body['functionName']);
+		if (true === is_dir($filepath)) {
+			$codePath = $filepath . DIRECTORY_SEPARATOR . $moduleName;
 
-        } else {
-            $codePath = $filepath;
-        }
+		} else {
+			$codePath = $filepath;
+		}
 
-        return new Response(201);
-    }
-    if ('/' === $path) {
-        if (null === $codePath) {
-            $logger->error("$codePath not found");
-            return new Response(500, [], 'Generic container: no requests supported');
-        }
+		return new Response(201);
+	}
 
-        ob_start();
+	if ('/' === $path) {
+		if (null === $codePath) {
+			$logger->error("$codePath not found");
+			return new Response(500, [], 'Generic container: no requests supported');
+		}
 
-        if (!file_exists($codePath)) {
-            $logger->error("$codePath not found");
-            return new Response(500, [], "$codePath not found");
-        }
+		ob_start();
 
-        $parser = (new ParserFactory)->create(ParserFactory::PREFER_PHP7);
-        try {
-            $parser->parse(file_get_contents($codePath));
-        } catch (Throwable $throwable) {
-            $logger->error($codePath . ' - ' . $throwable->getMessage());
-            return new Response(500, [], $codePath . ' - ' . $throwable->getMessage());
-        }
+		if (!file_exists($codePath)) {
+			$logger->error("$codePath not found");
+			return new Response(500, [], "$codePath not found");
+		}
 
-        require_once $codePath;
+		$parser = (new ParserFactory)->create(ParserFactory::PREFER_PHP7);
+		try {
+			$parser->parse(file_get_contents($codePath));
+		} catch (Throwable $throwable) {
+			$logger->error($codePath . ' - ' . $throwable->getMessage());
+			return new Response(500, [], $codePath . ' - ' . $throwable->getMessage());
+		}
 
-        //If the function as an handler class it will be called with request, response and logger
-        if (function_exists($userFunction)) {
-            $response = new Response();
-            ob_end_clean();
-            $userFunction(['request' =>$request, 'response' => $response, 'logger' => $logger]);
-            return $response;
-        }
-        //backwards compatibility: php code didn't have userFunction, i will return the content
-        $bodyRowContent = ob_get_contents();
-        ob_end_clean();
+		require_once $codePath;
 
-        return new Response(200, [], $bodyRowContent);
-    }
+		if (function_exists($userFunction)) {
+			$logger->debug('Calling user function');
 
-    return new Response(404, ['Content-Type' => 'text/plain'], 'Not found');
+			$response = new Response();
+			ob_end_clean();
+
+			$userFunction([
+				'request'  => $request,
+				'response' => $response,
+				'logger'   => $logger,
+			]);
+			
+			return $response;
+		} else {
+			$logger->debug('User function doesnt exist');
+		}
+
+		$bodyRowContent = ob_get_contents();
+		ob_end_clean();
+
+		return new Response(200, [], $bodyRowContent);
+	}
+
+	return new Response(404, ['Content-Type' => 'text/plain'], 'Not found');
 });
 
 $socket = new React\Socket\Server('0.0.0.0:8888', $loop);
